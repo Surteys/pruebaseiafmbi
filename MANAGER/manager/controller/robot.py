@@ -4,7 +4,9 @@ from paho.mqtt import publish
 from threading import Timer
 ########### MODIFICACION ########### 
 from time import sleep
-########### MODIFICACION ########### 
+########### MODIFICACION ###########
+############ MODIFICACION Para Ordenar Lista de Fusibles ###########
+from operator import itemgetter, attrgetter
 from shutil import copyfile
 from time import strftime
 from copy import copy
@@ -162,14 +164,21 @@ class Triggers (QState):
         self.queue      = self.model.robots[self.module]["queue"]
 
     def onEntry(self, event):
-        if len(self.queue) > 0:
+        if len(self.model.robots[self.module]["queue"]) > 0: #Se sustituyó "self.queue" por "self.model.robots[self.module]["queue"]" por que por alguna razón no funciona correctamente con la primera variable. (No se actualiza el arreglo)
             """
                 Aqui puedo aprovechar para generar la visual de la caja correspondiente con su configuracion de fusibles
             """
-            current_trig = self.model.robots[self.module]["current_trig"] = self.queue[0]
+            print("++++++++++Arreglo en el Modelo ++++++++++\n",self.model.robots[self.module]["queue"]) # Se muestra en consola el Arreglo Original
+            ordenados = sorted(self.model.robots[self.module]["queue"], key=itemgetter(0, 2)) # Se hace un sort de forma ascendente basado en 2 argumentos. Primero la caja, y después el Fusible
+            print("++++++++++Ordenados por Caja y después por Fusible ++++++++++\n",ordenados) #Se muestra en consola el Arreglo Ordenado
+            self.model.robots[self.module]["queue"] = ordenados # Se actualiza el arreglo original en el modelo para que tenga los valores ordenados
+            print("*-----------Arreglo en el Modelo Después del SORT-----------*\n",self.model.robots[self.module]["queue"]) # Se corrobora que el arreglo en el modelo se haya actualizado correctamente
+            #current_trig = self.model.robots[self.module]["current_trig"] = self.queue[0] # Línea de código original antes de meter modificaciones
+            current_trig = self.model.robots[self.module]["current_trig"] = ordenados[0] # Se toma como trigger actual el primer elemento del array ordenado
             box             = current_trig[0]
             cavity          = current_trig[1]
             fuse            = current_trig[2].split(sep = ",") # ["type", "current", "color"]
+            print("current_trig++++++++++",current_trig)
 
             if self.model.box_change != box:
                 command = {f"{self.model.box_change}": False}
