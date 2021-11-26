@@ -211,8 +211,8 @@ class Model (object):
 
         self.AfusesIzq = ['MINI,15,blue','MULTI,7.5,brown','ATO,5,beige','ATO,15,blue','MULTI,5,beige']
         self.AfusesDer = ['ATO,30,green','ATO,25,white','ATO,7.5,brown','MINI,5,beige','MINI,7.5,brown','MINI,10,red']
-        self.BfusesIzq = ['MINI,5,beige','MINI,7.5,brown','MINI,10,red','ATO,30,green','ATO,25,white','ATO,7.5,brown','ATO,15,blue_clear','MAXI,40,amber','MINI,15,blue']
-        self.BfusesDer = ['RELAY,60,red','RELAY,70,gray','ATO,10,red_clear','ATO,5,beige_clear','ATO,20,yellow','ATO,5,beige','ATO,10,red','ATO,15,blue']
+        self.BfusesIzq = ['MINI,5,beige','MINI,7.5,brown','MINI,10,red','ATO,25,white','ATO,7.5,brown','ATO,15,blue_clear','MINI,15,blue','MAXI,50,red']
+        self.BfusesDer = ['RELAY,60,red','RELAY,70,gray','MAXI,40,amber','ATO,30,green','ATO,10,red_clear','ATO,5,beige_clear','ATO,20,yellow','ATO,5,beige','ATO,10,red','ATO,15,blue']
         self.popQueueIzq = False
         self.popQueueDer = False
         self.databaseTempModel = []
