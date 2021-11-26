@@ -170,7 +170,6 @@ class StartCycle (QState):
 
     def onEntry(self, event):
         #limpiar variable para caja anterior que pasó
-        self.model.box_change = ""
         self.model.reset()
         Timer(1, self.robots_home).start()
         Timer(0.05, self.model.log, args = ("IDLE",)).start() 
@@ -555,10 +554,25 @@ class CheckQr (QState):
                                 self.model.database["fuses"]["PDC-RMID"] = {}
                                 temp = True
                             if i == "PDC-D" or i == "PDC-P":
-                                self.model.robots["robot_a"]["queue"].append([i, j, self.model.database["fuses"][i][j]])
+                                print("**** Robot A ****")
+                                print("Fusible: ",self.model.database["fuses"][i][j])
+                                if self.model.database["fuses"][i][j] in self.model.AfusesIzq:
+                                    print("Fusible Robot A IZQUIERDA")
+                                    self.model.robots["robot_a"]["queueIzq"].append([i, j, self.model.database["fuses"][i][j]])
+                                if self.model.database["fuses"][i][j] in self.model.AfusesDer:
+                                    print("Fusible Robot A DERECHA")
+                                    self.model.robots["robot_a"]["queueDer"].append([i, j, self.model.database["fuses"][i][j]])
+                                
 
                             if i == "PDC-R" or i == "PDC-RMID" or i == "PDC-S" or i == "TBLU":
-                                self.model.robots["robot_b"]["queue"].append([i, j, self.model.database["fuses"][i][j]])
+                                print("**** Robot B ****")
+                                print("Fusible: ",self.model.database["fuses"][i][j])
+                                if self.model.database["fuses"][i][j] in self.model.BfusesIzq:
+                                    print("Fusible Robot B IZQUIERDA")
+                                    self.model.robots["robot_b"]["queueIzq"].append([i, j, self.model.database["fuses"][i][j]])
+                                if self.model.database["fuses"][i][j] in self.model.BfusesDer:
+                                    print("Fusible Robot B DERECHA")
+                                    self.model.robots["robot_b"]["queueDer"].append([i, j, self.model.database["fuses"][i][j]])
                 #################################################################################################################         
 
                 if self.model.local_data["qr_rework"]:
@@ -679,6 +693,7 @@ class ClampsMonitor(QState):
                      database_temp.append("TBLU")
 
         print("\n database_temp: ", database_temp)
+        self.model.databaseTempModel = database_temp
 
         for i in database_temp:
             if not(i in self.model.plc["clamps"]):

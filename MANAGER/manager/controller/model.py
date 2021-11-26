@@ -37,7 +37,6 @@ class Model (object):
         self.screen_cont = 3    #contador para mostrar cuenta regresiva
         self.screen_cont_reset = 3 #valor debe ser igual a screen_cont, reinicia la variable
         self.fusible_manual = False #bandera para saber que se requiere llave para continuar
-        self.box_change = "" #para detectar cambio de caja en inserción (y poder ir deshabilitando las cajas terminadas)
         ###############################################################
 
         self.fuses_BB = {
@@ -180,7 +179,8 @@ class Model (object):
 
         self.robots = {
             "robot_a": {
-                "queue": [],
+                "queueIzq": [],
+                "queueDer": [],
                 "current_trig": None,
                 "pose": "",
                 "img": None,
@@ -189,7 +189,8 @@ class Model (object):
                 "error": ""
                 },
             "robot_b": {
-                "queue": [],
+                "queueIzq": [],
+                "queueDer": [],
                 "current_trig": None,
                 "pose": "",
                 "img": None,
@@ -208,11 +209,13 @@ class Model (object):
                 }
             }
 
-        self.variants = {
-            "small": ["DEMOS","A2965400909","A2965407118","A2965402319","A2965407314","A2965407103","A2965407203","A2965402100","A2965409507","A2965409500","A2965405713","A2965409511","A2965409611","A2965403314","A2965403414","A2945401510","A2945401311","A2945403311","A2945402110","A2945402311","A2945404211","A2945402409","A2945402511","A2945402711","A2945404411","A2945405506","A2945402811","A2945403011","A2945405706"],
-            "medium": ["DEMOM","A2965403008","A2965407216","A2965401314","A2965409118","A2965409708","A2965407814","A2965400708","A2965406816","A2965401314","A2965407814","A2965402000","A2945403611","A2945404511","A2945403711","A2945404011","A2945403911","A2945404111","A2945403710","A2945405306","A2945401911","A2945401711","A2945402111","A2965403705","A2965409411","A2965409408","A2965401221","A2965403605","A2965405413"],
-            "large": ["DEMOR","A2965408404","A2965403821","A2965403921","A2965404021"]
-            }
+        self.AfusesIzq = ['MINI,15,blue','MULTI,7.5,brown','ATO,5,beige','ATO,15,blue','MULTI,5,beige']
+        self.AfusesDer = ['ATO,30,green','ATO,25,white','ATO,7.5,brown','MINI,5,beige','MINI,7.5,brown','MINI,10,red']
+        self.BfusesIzq = ['MINI,5,beige','MINI,7.5,brown','MINI,10,red','ATO,30,green','ATO,25,white','ATO,7.5,brown','ATO,15,blue_clear','MAXI,40,amber','MINI,15,blue']
+        self.BfusesDer = ['RELAY,60,red','RELAY,70,gray','ATO,10,red_clear','ATO,5,beige_clear','ATO,20,yellow','ATO,5,beige','ATO,10,red','ATO,15,blue']
+        self.popQueueIzq = False
+        self.popQueueDer = False
+        self.databaseTempModel = []
 
     def fusesInit(self):
         self.database["fuses"] = {
@@ -277,7 +280,8 @@ class Model (object):
             except Exception as ex:
                 print("Reset exception: ", ex)
         for i in self.robots:
-            self.robots[i]["queue"].clear()
+            self.robots[i]["queueIzq"].clear()
+            self.robots[i]["queueDer"].clear()
             self.robots[i]["current_trig"] = None
             self.robots[i]["pose"] = ""
             self.robots[i]["img"] = None
@@ -295,6 +299,10 @@ class Model (object):
         self.local_data["lbl_info3_text"]   = ""
         self.local_data["lbl_info4_text"]   = ""
         self.local_data["qr_rework"]        = False
+
+        self.popQueueIzq = False
+        self.popQueueDer = False
+        self.databaseTempModel.clear()
 
         self.codes = {
             "FET": "--",

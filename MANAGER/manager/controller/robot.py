@@ -140,7 +140,7 @@ class SetRobot(QState):
         self.model  = model
         self.module = module
     def onEntry(self, QEvent):
-        if len(self.model.robots[self.module]["queue"]):
+        if len(self.model.robots[self.module]["queueIzq"]) or len(self.model.robots[self.module]["queueDer"]):
             command = {
                 "lbl_result" : {"text": "Preparando robot", "color": "green"},
                 "lbl_steps" : {"text": "Por favor espere", "color": "black"}
@@ -159,34 +159,22 @@ class Triggers (QState):
         super().__init__(parent)
         self.model      = model
         self.module     = module
-        self.queue      = self.model.robots[self.module]["queue"]
+        self.queueIzq      = self.model.robots[self.module]["queueIzq"]
+        self.queueDer      = self.model.robots[self.module]["queueDer"]
 
     def onEntry(self, event):
-        if len(self.queue) > 0:
+        if len(self.queueIzq) > 0:
+            self.model.popQueueIzq = True
+            self.model.popQueueDer = False
             """
                 Aqui puedo aprovechar para generar la visual de la caja correspondiente con su configuracion de fusibles
             """
-            current_trig = self.model.robots[self.module]["current_trig"] = self.queue[0]
+            current_trig = self.model.robots[self.module]["current_trig"] = self.queueIzq[0]
+            print("*******self.queueIzq*******\n",self.queueIzq)
+            print("*******current_trig*******\n",current_trig)
             box             = current_trig[0]
             cavity          = current_trig[1]
             fuse            = current_trig[2].split(sep = ",") # ["type", "current", "color"]
-
-            if self.model.box_change != box:
-                command = {f"{self.model.box_change}": False}
-                publish.single(self.model.pub_topics["plc"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-                self.model.box_change = box
-
-            #print("-----ENTRANDO A LA CLASE TRIGGERS------")
-
-            #if cavity == "F300" and not(self.model.flag):
-            #    temp = self.queue.pop(0)
-            #    self.queue.insert(self.queue[-1], temp)
-            #    self.model.flag = True
-
-            #    current_trig = self.model.robots[self.module]["current_trig"] = self.queue[0]
-            #    box             = current_trig[0]
-            #    cavity          = current_trig[1]
-            #    fuse            = current_trig[2].split(sep = ",") # ["type", "current", "color"]
 
             ######### Modificación para F96 #########
             if box == "PDC-RMID" and cavity == "F96":
@@ -266,10 +254,103 @@ class Triggers (QState):
             print("BOX: ",box," CAVITY: ",cavity," FUSE: ",fuse)
             Timer(0.1, self.robotTrigger, args = (command, )).start()
 
+        elif len(self.queueDer) > 0:
+            self.model.popQueueIzq = False
+            self.model.popQueueDer = True
+            print("+++++++++ENTRAMOS AL ELIF PARA LADO DERECHO+++++++++++++++++")
+            current_trig = self.model.robots[self.module]["current_trig"] = self.queueDer[0]
+            print("*******self.queueDer*******\n",self.queueDer)
+            print("*******current_trig*******\n",current_trig)
+            box             = current_trig[0]
+            cavity          = current_trig[1]
+            fuse            = current_trig[2].split(sep = ",") # ["type", "current", "color"]
+
+            ######### Modificación para F96 #########
+            if box == "PDC-RMID" and cavity == "F96":
+                box = "F96_box"
+                command = {
+                "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                "img_center": f"{box}.jpg",
+                "img_fuse": "vacio.jpg"
+                }
+            elif box == "PDC-R" and cavity == "F96":
+                box = "F96_box"
+                command = {
+                "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                "img_center": f"{box}.jpg",
+                "img_fuse": "vacio.jpg"
+                }
+            elif box == "PDC-RMID":
+                if self.model.database["fuses"]["PDC-RMID"]["F96"] != "empty":
+                    command = {
+                    "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                    "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                    "img_center": f"{box}.jpg",
+                    "img_fuse": "F96_box.JPG"
+                    }
+                else:
+                    command = {
+                    "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                    "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                    "img_center": f"{box}.jpg",
+                    "img_fuse": "vacio.jpg"
+                    }
+            elif box == "PDC-R":
+                if self.model.database["fuses"]["PDC-R"]["F96"] != "empty":
+                    command = {
+                    "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                    "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                    "img_center": f"{box}.jpg",
+                    "img_fuse": "F96_box.JPG"
+                    }
+                else:
+                    command = {
+                    "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                    "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                    "img_center": f"{box}.jpg",
+                    "img_fuse": "vacio.jpg"
+                    }
+            ######### Modificación para F96 #########
+            else:
+                command = {
+                    "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
+                    "lbl_steps" : {"text": f"Tomando Fusible", "color": "black"},
+                    "img_center": f"{box}.jpg",
+                    "img_fuse": "vacio.jpg"
+                    }
+                if "REL" in cavity:
+                    command["lbl_steps"] = {"text": f"Tomando Relay", "color": "black"}
+            publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
+            
+            if box == "TBLU":
+                cavity = "F10" + cavity[-1]
+            if box == "PDC-S":
+                cavity = "F11" + cavity[-1]
+            if "_clear" in fuse[2]:
+                fuse[0] = fuse[0] + "C"
+
+            box = box.replace("-","")
+            command = {"trigger": f"{fuse[0]}_{fuse[1]},{box},{cavity}"}
+            if "REL" in cavity:
+                temp = ""
+                if "60" in fuse[1]:
+                    temp = "RELAY_132"
+                elif "70" in fuse[1]:
+                    temp = "RELAY_112"
+                command["trigger"] =  f"{temp},{box},{cavity}"
+            print("BOX: ",box," CAVITY: ",cavity," FUSE: ",fuse)
+            Timer(0.1, self.robotTrigger, args = (command, )).start()
         else:
             #ya no hay cola de fusibles para este robot, etnonces ya terminó y se libera la
             #ultima caja que estuvo clampeada (self.model.box_change)
-            command = {f"{self.model.box_change}": False}
+            command = {}
+            for i in self.model.databaseTempModel:
+                print("i Caja a liberar: ",i)
+                command[i] = False
+            print("Command Final para liberar cajas: ",command)
+            #command = {f"{self.model.box_change}": False}
             publish.single(self.model.pub_topics["plc"],json.dumps(command),hostname='127.0.0.1', qos = 2)
 
             self.robotTrigger({"command": "stop"})
@@ -285,6 +366,8 @@ class Triggers (QState):
             #publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
             #Timer(0.05, self.robotTrigger, args = ({"trigger": "HOME"}, )).start()
             self.ok.emit()
+        print("||popQueueIzq|| = ",self.model.popQueueIzq,"||popQueueDer|| = ",self.model.popQueueDer)
+        print("Cajas que pertenecen al Robot (self.model.databaseTempModel): ",self.model.databaseTempModel)
 
     def robotTrigger(self, command):
         publish.single(self.model.pub_topics[self.module] ,json.dumps(command),hostname='127.0.0.1', qos = 2)
@@ -382,7 +465,10 @@ class Receiver(QState):
 
             # para quitar de la lista(en cola) el fusible insertado
             self.model.robots[self.module]["current_trig"] = None
-            self.model.robots[self.module]["queue"].pop(0)
+            if self.model.popQueueIzq == True and self.model.popQueueDer == False:
+                self.model.robots[self.module]["queueIzq"].pop(0)
+            if self.model.popQueueIzq == False and self.model.popQueueDer == True:
+                self.model.robots[self.module]["queueDer"].pop(0)
 
             #para reinicar contador de veces que entra a error
             self.model.contador_error = 0
@@ -623,7 +709,10 @@ class RetirarFusible(QState):
             # para quitar de la lista(en cola) el fusible insertado
             # después de haber hecho "cont_ok" 3 veces (las veces dependiendo de screen_cont)
             self.model.robots[self.module]["current_trig"] = None
-            self.model.robots[self.module]["queue"].pop(0)
+            if self.model.popQueueIzq == True and self.model.popQueueDer == False:
+                self.model.robots[self.module]["queueIzq"].pop(0)
+            if self.model.popQueueIzq == False and self.model.popQueueDer == True:
+                self.model.robots[self.module]["queueDer"].pop(0)
             self.model.screen_cont = self.model.screen_cont_reset 
             print("retirado_ok emit()")
             #Timer(1,self.retirado_ok.emit).start()
