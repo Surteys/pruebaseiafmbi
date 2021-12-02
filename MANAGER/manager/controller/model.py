@@ -37,6 +37,26 @@ class Model (object):
         self.screen_cont = 3    #contador para mostrar cuenta regresiva
         self.screen_cont_reset = 3 #valor debe ser igual a screen_cont, reinicia la variable
         self.fusible_manual = False #bandera para saber que se requiere llave para continuar
+
+        self.current_thread_robot = ""
+        self.robots_mode = 0
+        self.thread_robot = False
+
+
+        self.init_thread_robot = False
+        self.retry_thread_robot = False
+        self.set_thread_robot = False
+        self.trigger_thread_robot = False
+        self.finish_thread_robot = False
+        self.loaded_thread_robot = False
+        self.inserted_thread_robot = False
+        self.error_thread_robot = False
+        self.contador_error_2 = 0 #para contar las veces que entra al estado error de inserción
+        self.max_reintentos_2 = 3 #se define el mayor número de reintentos posibles
+        self.screen_cont_reset_2 = 3 #valor debe ser igual a screen_cont, reinicia la variable
+        self.fusible_manual_2 = False #bandera para saber que se requiere llave para continuar
+        self.limite_reintentos_thread = False
+        self.llave_thread = False
         ###############################################################
 
         self.fuses_BB = {
@@ -215,6 +235,8 @@ class Model (object):
         self.BfusesDer = ['RELAY,60,red','RELAY,70,gray','MAXI,40,amber','ATO,30,green','ATO,10,red_clear','ATO,5,beige_clear','ATO,20,yellow','ATO,5,beige','ATO,10,red','ATO,15,blue']
         self.popQueueIzq = False
         self.popQueueDer = False
+        self.popQueueIzq_2 = False
+        self.popQueueDer_2 = False
         self.databaseTempModel = []
 
     def fusesInit(self):
@@ -302,6 +324,8 @@ class Model (object):
 
         self.popQueueIzq = False
         self.popQueueDer = False
+        self.popQueueIzq_2 = False
+        self.popQueueDer_2 = False
         self.databaseTempModel.clear()
 
         self.codes = {

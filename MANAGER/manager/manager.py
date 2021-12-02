@@ -13,6 +13,7 @@ class Manager(MainWindow):
 
     def __init__(self, name = "EIAF-MBI", topic = "gui", menuMode = True, parent = None):
         super().__init__(name = name, topic = topic, menuMode = menuMode, parent = parent)
+        
         self.controller = Controller(self)
 
         self.ready.connect(self.showMaximized)

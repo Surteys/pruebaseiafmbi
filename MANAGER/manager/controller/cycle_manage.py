@@ -187,8 +187,8 @@ class StartCycle (QState):
             "lbl_box6" : {"text": "", "color": "orange"},
             "lbl_box7" : {"text": "", "color": "orange"},######### Modificación para F96 #########
             #############################################
-            "lbl_result" : {"text": "Nuevo ciclo", "color": "green"},
-            "lbl_steps" : {"text": "Coloca las cajas y presiona INICIO", "color": "black"},
+            "lbl_result" : {"text": "Nuevo ciclo, Coloca las cajas. Selecciona:", "color": "green"},
+            "lbl_steps" : {"text": '"F4" para UN Robot a la vez, o "F5" para DOS Robots', "color": "black"},
             "img_nuts" : "blanco.jpg",
             "img_center" : "logo.jpg",
             "allow_close": False,
@@ -299,7 +299,10 @@ class ScanQr (QState):
 
 
 class CheckQr (QState):
-    ok      = pyqtSignal()
+    #ok      = pyqtSignal()
+    ok_F4   = pyqtSignal()
+    ok_F5   = pyqtSignal()
+
     nok     = pyqtSignal()
     rework  = pyqtSignal()
 
@@ -588,7 +591,16 @@ class CheckQr (QState):
                     }
                 publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
                 Timer(0.1, self.fuseBoxesClamps).start()
-                self.ok.emit()
+
+                #################################
+                if self.model.robots_mode == 1:
+                    self.ok_F4.emit()
+                elif self.model.robots_mode == 2:
+                    self.ok_F5.emit()
+                else:
+                    self.nok.emit()
+                ################################
+                #self.ok.emit()
             else:
                 self.rework.emit()
                 return
@@ -702,6 +714,7 @@ class ClampsMonitor(QState):
             else:
                 temp = True
 
+        #si se colocaron las cajas necesarias de un robot se emite el ok correspondiente
         if temp:
 
             if self.module == "clamps_a":
@@ -711,16 +724,78 @@ class ClampsMonitor(QState):
 
             command = {
                 "lbl_result" : {"text": f"Cajas de {tagrob} colocadas", "color": "green"},
-                "lbl_steps" : {"text": "Presionar boton verde para comenzar", "color": "black"}
+                "lbl_steps" : {"text": f"Presionar boton verde para comenzar", "color": "black"}
                 }
             publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-            print("ok.emit: ")
-            print(self.module)
+            self.ok.emit()
+
+
+class ClampsMonitorBoth(QState):
+    ok = pyqtSignal()
+
+    def __init__(self, module = "clamps", model = None, parent = None):
+        super().__init__(parent)
+        self.model = model
+        self.module = module
+
+    def onEntry(self, QEvent):
+
+        temp = False
+        #self.model.database["clamps"] contiene los clamps necesarios para el arnés escaneado
+        #self.model.plc["clamps"] contiene las cajas que se han clampeado correctamente en físico
+        print("\n database: ", self.model.database["clamps"])
+        print(" PLC     : ", self.model.plc["clamps"],"\n")
+        
+        database_temp = []
+
+        command = {
+                    "lbl_result" : {"text": "Esperando cajas para continuar", "color": "green"},
+                    "lbl_steps" : {"text": "Coloca el resto de las cajas", "color": "black"},
+                    "img_center" : "logo.jpg"
+                    }
+        publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
+
+        if not("PDC-D" in database_temp):
+            if "PDC-D" in self.model.database["clamps"]:
+                    database_temp.append("PDC-D")
+        if not("PDC-P" in database_temp):
+            if "PDC-P" in self.model.database["clamps"]:
+                database_temp.append("PDC-P")
+        if not("PDC-R" in  database_temp):
+            if "PDC-R" in self.model.database["clamps"]:
+                    database_temp.append("PDC-R")
+        if not("PDC-RMID" in  database_temp):
+            if "PDC-RMID" in self.model.database["clamps"]:
+                    database_temp.append("PDC-RMID")
+        if not("PDC-S" in  database_temp):
+            if "PDC-S" in self.model.database["clamps"]:
+                    database_temp.append("PDC-S")
+        if not("TBLU" in  database_temp):
+            if "TBLU" in self.model.database["clamps"]:
+                    database_temp.append("TBLU")
+
+        print("\n database_temp: ", database_temp)
+        self.model.databaseTempModel = database_temp
+
+        for i in database_temp:
+            if not(i in self.model.plc["clamps"]):
+                temp = False
+                break
+            else:
+                temp = True
+
+        #si ya se colocaron todos los clamps que lleva el arnés
+        if temp:
+
+            command = {
+                "lbl_result" : {"text": f"Todas las cajas colocadas", "color": "green"},
+                "lbl_steps" : {"text": f"Presionar boton verde para comenzar", "color": "black"}
+                }
+            publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
             self.ok.emit()
 
 
 class Clamps_Standby(QState):
-    #ok = pyqtSignal()
 
     def __init__(self, module = "clamps", model = None, parent = None):
         super().__init__(parent)
@@ -741,6 +816,13 @@ class Finish (QState):
         self.model = model
 
     def onEntry(self, event):
+
+        print("current state: Finish (cycle_manage)")
+        #se reinicia el modo de los robots para escoger en el siguiente arnés
+        self.model.robots_mode = 0
+        self.model.thread_robot = False
+        self.model.init_thread_robot = False
+
         command = {}
         for i in self.model.database["fuses"]:
                 command[i] = False
@@ -778,6 +860,12 @@ class Reset (QState):
         self.model = model
 
     def onEntry(self, event):
+
+        #se reinicia el modo de los robots para escoger en el siguiente arnés
+        self.model.robots_mode = 0
+        self.model.thread_robot = False
+        self.model.init_thread_robot = False
+
         command = {
             "lbl_result" : {"text": "Se giró la llave de reset", "color": "green"},
             "lbl_steps" : {"text": "Reiniciando", "color": "black"},
@@ -813,3 +901,29 @@ class Reset (QState):
                         }
                     publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
         Timer(2,self.ok.emit).start()
+
+
+
+class Waiting_Robot (QState):
+    ok      = pyqtSignal()
+    waiting = pyqtSignal()
+
+    def __init__(self, model = None, parent = None):
+        super().__init__(parent)
+        self.model = model
+
+    def onEntry(self, event):
+
+        command = {
+            "lbl_result" : {"text": "Esperando Segundo Robot", "color": "green"},
+            "lbl_steps" : {"text": "", "color": "black"}
+            }
+        publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
+
+        print("Esperando segundo robot...")
+
+        if self.model.thread_robot == True:
+            self.ok.emit()
+        elif self.model.thread_robot == False:
+            #Timer(4,self.waiting.emit).start() #con 4 ya funcionaba, falta revisar con menos tiempo
+            Timer(2,self.waiting.emit).start()

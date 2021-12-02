@@ -21,9 +21,10 @@ class Robot(QState):
         self.module = module
         self.sensor = "color_sensor_" + self.module[-1]
 
+        print("se creo un objeto de robot con modulo: ", self.module)
+
         self.set_robot      = SetRobot(module = self.module, model = self.model, parent = self)
         self.triggers       = Triggers(module = self.module, model = self.model, parent = self)
-        self.color_sensor   = ColorSensor(sensor = self.sensor, robot = self.module, model = self.model, parent = self)
         self.standby        = QState(self)
         self.receiver       = Receiver(module = self.module, model = self.model, parent = self)
         self.error          = Error(module = self.module, model = self.model, parent = self)
@@ -31,60 +32,59 @@ class Robot(QState):
         self.manual         = Manual(module = self.module, model = self.model, parent = self)
         self.manual_standby = ManualStandby(module = self.module, model = self.model, parent = self)
         self.retirar        = RetirarFusible(module = self.module, model = self.model, parent = self)
+        self.receiver_error = ReceiverError(module = self.module, model = self.model, parent = self)
+        self.loaded_standby = Loaded_Standby(module = self.module, model = self.model, parent = self)
 
-        #Transiciones son el hecho de moverte de un estado a otro estado
-        #lo que genera una transición es un evento y un evento es una señal (un emit)
+        ###Transiciones son el hecho de moverte de un estado a otro estado
+        ###lo que genera una transición es un evento y un evento es una señal (un emit)
 
-        #self.model.transitions.... es la señal, es un apuntador a los 
-        #métodos de la clase Mqtt;
-        #self.client             = MqttClient(self.model, parent = self)
-        #self.model.transitions  = self.client
+        ###self.model.transitions.... es la señal, es un apuntador a los 
+        ###métodos de la clase Mqtt;
+        ###self.client             = MqttClient(self.model, parent = self)
+        ###self.model.transitions  = self.client
 
-        #retry es el estado inicial, y cada que presionar retry boton te mandará a este estado inicial
+        ############################################################################################################
+
+        #presionar retry boton te mandará a este estado
         self.addTransition(self.model.transitions.retry_btn, self.retry)
-        self.retry.addTransition(self.retry.ok, self.set_robot)
-
-        self.set_robot.addTransition(self.model.transitions.ready, self.set_robot)
-        self.set_robot.addTransition(self.set_robot.ok, self.triggers)
-        self.triggers.addTransition(self.model.transitions.color_rqst, self.color_sensor)
-        self.color_sensor.addTransition(self.color_sensor.ok, self.standby)
-
-        #"INSERTED" TCP/IP dispara model.transitions.inserted
-        #transiciona de standby a receiver cuando se hace bien la inserción
-        self.standby.addTransition(self.model.transitions.inserted, self.receiver)
-
-        #error exception, casi nunca pasa, este no es error de inserción
-        #este menciona un error en el mensaje del fusible que se pide
-        self.receiver.addTransition(self.receiver.nok, self.error)
-
-        #receiver te dice que la inserción fue correcta y pasa al siguiente fusible a insertar
-        self.receiver.addTransition(self.receiver.ok, self.triggers)
-
-        #self.model.transitions.error, viene de comm.py de las lecturas del robot
-        #"ERROR" TCP/IP dispara model.transitions.error
-        #self.error sería el estado al que va a transicionar dentro de esta clase
+        #un error de inserción marcado por parte del robot te mandará a este estado
         self.addTransition(self.model.transitions.error, self.error)
 
-        #cuando se haya intentado cierto numero de veces la insercion se pasa al estado manual
+        #al haber terminado el estado retry se manda la señal ok y se va a set_robot
+        self.retry.addTransition(self.retry.ok, self.set_robot)
+        #cuando el robot manda un "READY" se pasa a set_robot para enviar mensaje de "preparando robot"
+        self.set_robot.addTransition(self.model.transitions.ready, self.set_robot)
+        #en set_robot se pregunta si quedan fusibles en cola, si quedan se manda un set_robot.ok y sigues al estado triggers, si no quedan se manda un set_robot.finish
+        self.set_robot.addTransition(self.set_robot.ok, self.triggers)
+        #en triggers pueden pasar dos cosas, o se manda al robot a hacer una inserción, o se manda un triggers.ok de que ya no hay fusibles en cola
+        #self.model.transitions.loaded es un mensaje del robot que ya tomó un fusible y esto manda al estado loaded standby de espera de inserción (y mostrar fusible tomado)
+        self.triggers.addTransition(self.model.transitions.loaded, self.loaded_standby)
+        #(posibilidades dentro de standby: inserción correcta, retry_btn, error de inserción)
+        #self.model.transitions.inserted es un mensaje del robot que ya insertó correctamente el fusible
+        self.loaded_standby.addTransition(self.model.transitions.inserted, self.receiver)
+        #en el estado receiver te dice que la inserción fue correcta y se actualizan las imagenes, se pintan los bounding box de los fusibles insertados, 
+        #y continúas a triggers para siguiente fusible en cola
+        self.receiver.addTransition(self.receiver.ok, self.triggers)
+        #este menciona una exception en el código para mostrar imagenes, lo cual te manda al estado
+        self.receiver.addTransition(self.receiver.nok, self.receiver_error)
+
+        #cuando se haya intentado cierto numero de veces la insercion se habilita el estado manual
         self.error.addTransition(self.error.limite_reintentos, self.manual)
-
-        #en el estado manual aparece un mensaje para que retires el fusible indicado y te da la opción de 
-        #insertarlo manualmente o presionar boton de reintento, para salir de este estado y quitar el fusible
-        #actual de cola para continuar con la siguiente inserción te pedirá llave, pero si se presiona el
-        #botón amarillo (independientemente de donde estes irás al estado retry) entonces
-        #no irás a el estado "retirar" entonces no se quita de la cola el fusible y continua el proceso.
+        #manual mostrará un mensaje para tomar una desición, y se quedará esperando en manual_standby
         self.manual.addTransition(self.manual.manual_ok, self.manual_standby)
+        #dar llave te lleva al estado de retirar el fusible de la cola de tareas
         self.manual_standby.addTransition(self.model.transitions.key,self.retirar)
-
-        #una vez que se quitó de cola el fusible se muestra un mensaje 1.5 segundos y se va a reintento
-        #el cual es el estado inicial de robots, comenzando con el siguiente fusible
+        #este es para mostrar un contador que antes de retirar de la cola el fusible
         self.retirar.addTransition(self.retirar.cont_ok,self.retirar)
+        #una vez que se retiró correctamente el fusible de la cola de tareas se regresa a retry
         self.retirar.addTransition(self.retirar.retirado_ok, self.retry)
 
-        #solo mandará el OK esta clase Robot hasta que triggers y finish manden sus señales... creo xD 
+        #solo mandará el OK esta clase Robot hasta que triggers (triggers.ok) y set_robot (set_robot.finish) manden sus señales
         self.triggers.ok.connect(self.ok)
+        #este connect no es necesario pero es por seguridad de que se de un retry_btn antes de finalizar
         self.set_robot.finish.connect(self.ok)
 
+        #inicializas la máquina de estados con el estado inicial de retry
         self.setInitialState(self.retry)
 
 #cada clase es un estado diferente, al cual llegas por las transiciones
@@ -97,19 +97,12 @@ class Retry(QState):
         self.model  = model
         self.module = module
     def onEntry(self, QEvent):
+
+        print("current state: Retry")
         if self.model.robots[self.module]["current_trig"] != None:
             current_trig = self.model.robots[self.module]["current_trig"]
             box             = current_trig[0]
             cavity          = current_trig[1]
-            #if not(box) in self.model.retries:
-            #    self.model.retries[box] = {}
-            #    self.model.retries[box][cavity] = 1
-            #else:
-            #    if not(cavity) in self.model.retries[box]:
-            #        self.model.retries[box][cavity] = 1
-            #    else: 
-            #        self.model.retries[box][cavity] += 1
-            #print("REINTENTOS: ",self.model.retries)
 
         self.restartRobot()
         self.model.robots[self.module]["retry"] = False
@@ -123,14 +116,14 @@ class Retry(QState):
             if self.module == "robot_b":
                 self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
             ########### MODIFICACION ###########
+            sleep(0.1)
             publish.single(self.model.pub_topics[i] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
-            Timer(0.7, self.startRobot, args = (i,)).start()
+            Timer(0.4, self.startRobot, args = (i,)).start()
 
     def startRobot(self, module):
         publish.single(self.model.pub_topics[module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
         if module == self.module:
             self.ok.emit()
-
 
 class SetRobot(QState):
     ok      = pyqtSignal()
@@ -140,6 +133,13 @@ class SetRobot(QState):
         self.model  = model
         self.module = module
     def onEntry(self, QEvent):
+
+        print("current state: SetRobot")
+
+        if self.model.robots_mode == 2:
+            self.model.init_thread_robot = True
+            print("Iniciar el segundo robot en paralelo")
+
         if len(self.model.robots[self.module]["queueIzq"]) or len(self.model.robots[self.module]["queueDer"]):
             command = {
                 "lbl_result" : {"text": "Preparando robot", "color": "green"},
@@ -150,8 +150,8 @@ class SetRobot(QState):
                 self.model.robots[self.module]["ready"] = False
                 Timer(0.1, self.ok.emit).start()
         else:
+            print("Finish de robot.py emit()")
             self.finish.emit()
-
 
 class Triggers (QState):
     ok  = pyqtSignal()
@@ -159,24 +159,27 @@ class Triggers (QState):
         super().__init__(parent)
         self.model      = model
         self.module     = module
+
         self.queueIzq      = self.model.robots[self.module]["queueIzq"]
         self.queueDer      = self.model.robots[self.module]["queueDer"]
 
     def onEntry(self, event):
+
+        print("current state: Triggers")
+
+        print("Triggers self.module-----", self.module)
+
         if len(self.queueIzq) > 0:
             self.model.popQueueIzq = True
             self.model.popQueueDer = False
-            """
-                Aqui puedo aprovechar para generar la visual de la caja correspondiente con su configuracion de fusibles
-            """
+
             current_trig = self.model.robots[self.module]["current_trig"] = self.queueIzq[0]
             print("*******self.queueIzq*******\n",self.queueIzq)
-            print("*******current_trig*******\n",current_trig)
             box             = current_trig[0]
             cavity          = current_trig[1]
             fuse            = current_trig[2].split(sep = ",") # ["type", "current", "color"]
 
-            ######### Modificación para F96 #########
+
             if box == "PDC-RMID" and cavity == "F96":
                 box = "F96_box"
                 command = {
@@ -223,7 +226,7 @@ class Triggers (QState):
                     "img_center": f"{box}.jpg",
                     "img_fuse": "vacio.jpg"
                     }
-            ######### Modificación para F96 #########
+
             else:
                 command = {
                     "lbl_result" : {"text": f"{fuse[0]} {fuse[1]}", "color": "green"},
@@ -251,7 +254,11 @@ class Triggers (QState):
                 elif "70" in fuse[1]:
                     temp = "RELAY_112"
                 command["trigger"] =  f"{temp},{box},{cavity}"
-            print("BOX: ",box," CAVITY: ",cavity," FUSE: ",fuse)
+
+            print("*******current_trig*******\n")
+            print("BOX: ",box,"\nCAVITY: ",cavity,"\nFUSE: ",fuse)
+
+            #SE MANDA MENSAJE AL ROBOT PARA IR POR ESE FUSIBLE, A ESA CAJA, A ESA CAVIDAD A INSERTAR
             Timer(0.1, self.robotTrigger, args = (command, )).start()
 
         elif len(self.queueDer) > 0:
@@ -260,7 +267,6 @@ class Triggers (QState):
             print("+++++++++ENTRAMOS AL ELIF PARA LADO DERECHO+++++++++++++++++")
             current_trig = self.model.robots[self.module]["current_trig"] = self.queueDer[0]
             print("*******self.queueDer*******\n",self.queueDer)
-            print("*******current_trig*******\n",current_trig)
             box             = current_trig[0]
             cavity          = current_trig[1]
             fuse            = current_trig[2].split(sep = ",") # ["type", "current", "color"]
@@ -340,11 +346,28 @@ class Triggers (QState):
                 elif "70" in fuse[1]:
                     temp = "RELAY_112"
                 command["trigger"] =  f"{temp},{box},{cavity}"
-            print("BOX: ",box," CAVITY: ",cavity," FUSE: ",fuse)
+            
+            print("*******current_trig*******\n")
+            print("BOX: ",box,"\nCAVITY: ",cavity,"\nFUSE: ",fuse)
+            #SE MANDA MENSAJE AL ROBOT PARA IR POR ESE FUSIBLE, A ESA CAJA, A ESA CAVIDAD A INSERTAR
             Timer(0.1, self.robotTrigger, args = (command, )).start()
-        else:
-            #ya no hay cola de fusibles para este robot, etnonces ya terminó y se libera la
-            #ultima caja que estuvo clampeada (self.model.box_change)
+
+
+        else: #YA NO HAY FUSIBLES EN COLA
+            
+            #para que el robot a solo pueda liberar las cajas de su lado al terminar
+            if self.module == "robot_a":
+                self.model.databaseTempModel.clear()
+                self.model.databaseTempModel.append("PDC-D")
+                self.model.databaseTempModel.append("PDC-P")
+
+            if self.module == "robot_b":
+                self.model.databaseTempModel.clear()
+                self.model.databaseTempModel.append("PDC-R")
+                self.model.databaseTempModel.append("PDC-RMID")
+                self.model.databaseTempModel.append("PDC-S")
+                self.model.databaseTempModel.append("TBLU")
+
             command = {}
             for i in self.model.databaseTempModel:
                 print("i Caja a liberar: ",i)
@@ -353,68 +376,27 @@ class Triggers (QState):
             #command = {f"{self.model.box_change}": False}
             publish.single(self.model.pub_topics["plc"],json.dumps(command),hostname='127.0.0.1', qos = 2)
 
+            print("Enviando robots a Home - STOP - START")
+            sleep(0.1)
             self.robotTrigger({"command": "stop"})
-            sleep(0.2)
-            self.robotTrigger({"command": "stop"})
-            sleep(0.2)
+            sleep(0.4)
             self.robotTrigger({"command": "start"})
 
             command = {
                 "lbl_result" : {"text": f"Inserciones del {self.module} terminadas", "color": "green"},
                 "lbl_steps" : {"text": "", "color": "black"}
                 }
-            #publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-            #Timer(0.05, self.robotTrigger, args = ({"trigger": "HOME"}, )).start()
+            print("Triggers.ok de robot.py emit()")
             self.ok.emit()
-        print("||popQueueIzq|| = ",self.model.popQueueIzq,"||popQueueDer|| = ",self.model.popQueueDer)
-        print("Cajas que pertenecen al Robot (self.model.databaseTempModel): ",self.model.databaseTempModel)
+
+        # TERMINADO, SE IMPRIME ESTO
+        #print("||popQueueIzq|| = ",self.model.popQueueIzq,"||popQueueDer|| = ",self.model.popQueueDer)
+        #print("Cajas que pertenecen al Robot (self.model.databaseTempModel): ",self.model.databaseTempModel)
+
 
     def robotTrigger(self, command):
+
         publish.single(self.model.pub_topics[self.module] ,json.dumps(command),hostname='127.0.0.1', qos = 2)
-
-
-class ColorSensor(QState):
-    ok  = pyqtSignal()
-    nok = pyqtSignal()
-
-    def __init__(self, sensor = "color_sensor_a", robot = "robot_a", model = None, parent = None):
-        super().__init__(parent)
-        self.model      = model
-        self.sensor     = sensor
-        self.robot      = robot
-        
-
-    def onEntry(self, QEvent):
-        command = {
-            "lbl_steps" : {"text": "Inspeccionando color", "color": "black"}
-            }
-        #publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-        #Timer(2, self.response).start()
-        self.response()
-
-    def response(self):
-        command = {
-            "trigger": "color_ok"
-            }
-        #publish.single(self.model.pub_topics[self.robot],json.dumps(command),hostname='127.0.0.1', qos = 2)
-        box     = self.model.robots[self.robot]["current_trig"][0]
-        cavity  = self.model.robots[self.robot]["current_trig"][1]
-        #print("ENTRADA DE COLOR SENSOR BOX: ",box," CAVITY: ",cavity)
-        ######### Modificación para F96 #########
-        if box == "PDC-RMID" and cavity =="F96":
-            #print("Cambio de nombre en caja para colocar la F96!")
-            box = "F96_box"
-        if box == "PDC-R" and cavity =="F96":
-            #print("Cambio de nombre en caja para colocar la F96!")
-            box = "F96_box"
-        ######### Modificación para F96 #########
-        command = {
-            "lbl_steps" : {"text": f"Insertando en {box} posicion {cavity}", "color": "black"}
-            }
-        #print("SALIDA DE COLOR SENSOR BOX: ",box," CAVITY: ",cavity)
-        publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-        self.ok.emit()
-
 
 class Receiver(QState):
     ok  = pyqtSignal()
@@ -425,10 +407,12 @@ class Receiver(QState):
         self.module = module
 
     def onEntry(self, QEvent):
+
+        print("current state: Receiver")
+
         box             = self.model.robots[self.module]["current_trig"][0]
         cavity          = self.model.robots[self.module]["current_trig"][1]
         value           = self.model.robots[self.module]["current_trig"][2]
-        #print("DENTRO DE FUNCION RECEIVER!!!!!!!!!!")
         try:
             #self.model.drawBB(draw = [box, cavity], color = (0, 255, 0))
             #imwrite(self.model.imgs_path + box + ".jpg", self.model.imgs[box])
@@ -483,7 +467,6 @@ class Receiver(QState):
             self.model.robots[self.module]["error"] = ex.args
             self.nok.emit()
 
-
 class Error(QState):
     limite_reintentos  = pyqtSignal()
     def __init__(self, module = "robot_a", model = None, parent = None):
@@ -492,6 +475,9 @@ class Error(QState):
         self.module     = module
 
     def onEntry(self, event):
+
+        print("current state: Error")
+
         box = self.model.robots[self.module]["current_trig"][0]
         cavity = self.model.robots[self.module]["current_trig"][1]
         if box == "PDC-RMID" and cavity == "F96":
@@ -562,13 +548,13 @@ class Error(QState):
     def restartRobot(self):
         ########### MODIFICACION ###########
         if self.module == "robot_a":
-                self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+            self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
         if self.module == "robot_b":
             self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
         ########### MODIFICACION ###########
         self.model.robots[self.module]["ready"] = False
         publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
-        Timer(0.7, self.startRobot, args = (self.module,)).start()
+        Timer(0.4, self.startRobot, args = (self.module,)).start()
 
     def startRobot(self, module):
         publish.single(self.model.pub_topics[module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
@@ -586,8 +572,6 @@ class Error(QState):
                 "lbl_steps" : {"text": "", "color": "black"}
                 }
             publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-        
-
 
 class Manual(QState):
 
@@ -599,6 +583,9 @@ class Manual(QState):
         self.module = module
 
     def onEntry(self, QEvent):
+
+
+        print("current state: Manual")
 
         #se lee del modelo la caja y cavidad actuales
         box = self.model.robots[self.module]["current_trig"][0]
@@ -634,12 +621,12 @@ class Manual(QState):
                 self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
         if self.module == "robot_b":
             self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-        sleep(0.3)
+
+        sleep(0.1)
         publish.single(self.model.pub_topics[self.module],json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
         sleep(0.4)
-        publish.single(self.model.pub_topics[self.module],json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
-        sleep(0.3)
         publish.single(self.model.pub_topics[self.module],json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+
 
         command = {
                     "lbl_result" : {"text": f"Reintentos: {reintentos}. Para reintentar presionar boton amarillo.", "color": "blue"},
@@ -656,7 +643,6 @@ class Manual(QState):
         print("emit manual_ok")
         self.manual_ok.emit()
 
-
 class ManualStandby(QState):
 
     #manual_standby  = pyqtSignal()
@@ -667,6 +653,9 @@ class ManualStandby(QState):
         self.module = module
 
     def onEntry(self, QEvent):
+
+        print("current state: ManualStandby")
+
         #bandera para funcionamiento de la llave sin mensaje de confirmación
         self.model.fusible_manual = True
         print("Esperando botón de reintento o llave de calidad")
@@ -677,7 +666,6 @@ class ManualStandby(QState):
         self.model.fusible_manual = False
         command = {"lbl_info1" : {"text": "", "color": "red"}}
         publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
-        
 
 class RetirarFusible(QState):
 
@@ -690,6 +678,8 @@ class RetirarFusible(QState):
         self.module = module
 
     def onEntry(self, QEvent):
+
+        print("current state: RetirarFusible")
 
         command = {
                     "lbl_result" : {"text": f"Fusible insertado manualmente.", "color": "green"},
@@ -715,11 +705,47 @@ class RetirarFusible(QState):
                 self.model.robots[self.module]["queueDer"].pop(0)
             self.model.screen_cont = self.model.screen_cont_reset 
             print("retirado_ok emit()")
-            #Timer(1,self.retirado_ok.emit).start()
             self.retirado_ok.emit()
         
+class ReceiverError(QState):
 
+    def __init__(self, module = "Receiver Error", model = None, parent = None):
+        super().__init__(parent)
+        self.model = model
+        self.module = module
 
+    def onEntry(self, QEvent):
+
+        print("current state: ReceiverError")
+
+        command = {"lbl_info1" : {"text": "ERROR DE IMAGENES", "color": "red"}}
+        publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
+
+class Loaded_Standby(QState):
+
+    def __init__(self, module = "robot_a", model = None, parent = None):
+        super().__init__(parent)
+        self.model      = model
+        self.module     = module
+        
+
+    def onEntry(self, QEvent):
+
+        print("current state: Loaded_Standby")
+
+        box     = self.model.robots[self.module]["current_trig"][0]
+        cavity  = self.model.robots[self.module]["current_trig"][1]
+
+        if box == "PDC-RMID" and cavity =="F96":
+            box = "F96_box"
+        if box == "PDC-R" and cavity =="F96":
+            box = "F96_box"
+
+        command = {
+            "lbl_steps" : {"text": f"Insertando en {box} posicion {cavity}", "color": "black"}
+            }
+
+        publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
         
 
             
