@@ -99,31 +99,36 @@ class Retry(QState):
     def onEntry(self, QEvent):
 
         print("current state: Retry")
-        if self.model.robots[self.module]["current_trig"] != None:
-            current_trig = self.model.robots[self.module]["current_trig"]
-            box             = current_trig[0]
-            cavity          = current_trig[1]
 
-        self.restartRobot()
-        self.model.robots[self.module]["retry"] = False
+        if self.model.robots_mode == 2:
+            self.model.init_thread_robot = True
+            print("Iniciar el segundo robot en paralelo")
 
-    def restartRobot(self):
+        sleep(0.2)
+        publish.single(self.model.pub_topics["robot_a"],json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+        sleep(0.2)
+        publish.single(self.model.pub_topics["robot_b"],json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+
         for i in self.model.robots:
             self.model.robots[i]["ready"] = False
-            ########### MODIFICACION ###########
-            if self.module == "robot_a":
-                self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-            if self.module == "robot_b":
-                self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-            ########### MODIFICACION ###########
-            sleep(0.1)
-            publish.single(self.model.pub_topics[i] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
-            Timer(0.4, self.startRobot, args = (i,)).start()
 
-    def startRobot(self, module):
-        publish.single(self.model.pub_topics[module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
-        if module == self.module:
-            self.ok.emit()
+        Timer(0.4, self.startRobot_A).start()
+        Timer(0.4, self.startRobot_B).start()
+
+        self.model.robots[self.module]["retry"] = False
+
+        self.ok.emit()
+
+    def startRobot_A(self):
+        self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+        publish.single(self.model.pub_topics["robot_a"],json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+        
+
+    def startRobot_B(self):
+        self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+        publish.single(self.model.pub_topics["robot_b"],json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+        
+            
 
 class SetRobot(QState):
     ok      = pyqtSignal()
@@ -135,10 +140,6 @@ class SetRobot(QState):
     def onEntry(self, QEvent):
 
         print("current state: SetRobot")
-
-        if self.model.robots_mode == 2:
-            self.model.init_thread_robot = True
-            print("Iniciar el segundo robot en paralelo")
 
         if len(self.model.robots[self.module]["queueIzq"]) or len(self.model.robots[self.module]["queueDer"]):
             command = {
@@ -381,6 +382,7 @@ class Triggers (QState):
             self.robotTrigger({"command": "stop"})
             sleep(0.4)
             self.robotTrigger({"command": "start"})
+            sleep(0.1)
 
             command = {
                 "lbl_result" : {"text": f"Inserciones del {self.module} terminadas", "color": "green"},
@@ -552,8 +554,10 @@ class Error(QState):
         if self.module == "robot_b":
             self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
         ########### MODIFICACION ###########
-        self.model.robots[self.module]["ready"] = False
-        publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+        self.model.robots["robot_a"]["ready"] = False
+        self.model.robots["robot_b"]["ready"] = False
+        publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+        publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
         Timer(0.4, self.startRobot, args = (self.module,)).start()
 
     def startRobot(self, module):

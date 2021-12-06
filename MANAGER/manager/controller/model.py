@@ -57,6 +57,8 @@ class Model (object):
         self.fusible_manual_2 = False #bandera para saber que se requiere llave para continuar
         self.limite_reintentos_thread = False
         self.llave_thread = False
+        self.waiting_key_thread = False
+        self.robot_principal = False
         ###############################################################
 
         self.fuses_BB = {

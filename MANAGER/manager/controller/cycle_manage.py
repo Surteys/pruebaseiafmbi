@@ -29,7 +29,7 @@ class Startup(QState):
             Timer(0.05, self.logout, args = (copy(self.model.local_data["user"]),)).start()
         command = {
             "lbl_info1" : {"text": "", "color": "black"},
-            #"lbl_info2" : {"text": "", "color": "green"},
+            #"lbl_info2" : {"text": "", "color": "green"}, #debe ir comentado para evitar que se reinicie el mensaje de fusibles que faltan por rellenar
             "lbl_info3" : {"text": "", "color": "black"},
             "lbl_info4" : {"text": "", "color": "black"},
             "lbl_nuts" : {"text": "  F1: Enviar a Home\nF12: Reiniciar Robots", "color": "purple"},
@@ -822,6 +822,7 @@ class Finish (QState):
         self.model.robots_mode = 0
         self.model.thread_robot = False
         self.model.init_thread_robot = False
+        self.model.robot_principal = False
 
         command = {}
         for i in self.model.database["fuses"]:
@@ -865,6 +866,7 @@ class Reset (QState):
         self.model.robots_mode = 0
         self.model.thread_robot = False
         self.model.init_thread_robot = False
+        self.model.robot_principal = False
 
         command = {
             "lbl_result" : {"text": "Se giró la llave de reset", "color": "green"},
@@ -915,15 +917,24 @@ class Waiting_Robot (QState):
     def onEntry(self, event):
 
         command = {
-            "lbl_result" : {"text": "Esperando Segundo Robot", "color": "green"},
-            "lbl_steps" : {"text": "", "color": "black"}
+            "lbl_info3" : {"text": "Esperando Segundo Robot", "color": "green"}
             }
         publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
 
         print("Esperando segundo robot...")
+        #para saber cuando el robot principal termina antes que el thread
+        self.model.robot_principal = True
 
+        #variable para saber que el robot thread ya termino
         if self.model.thread_robot == True:
+            self.model.robot_principal = False
             self.ok.emit()
         elif self.model.thread_robot == False:
-            #Timer(4,self.waiting.emit).start() #con 4 ya funcionaba, falta revisar con menos tiempo
             Timer(2,self.waiting.emit).start()
+
+    def onExit(self, event):
+        #se limpia el mensaje de lbl_info3
+        command = {
+            "lbl_info3" : {"text": "", "color": "green"}
+            }
+        publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)

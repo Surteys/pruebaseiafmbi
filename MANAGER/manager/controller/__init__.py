@@ -139,6 +139,26 @@ class MyThread(QThread):
 
         while 1:
 
+            #tiempo de espera para no alentar las ejecuciones de otros procesos
+            sleep(0.2)
+
+            if self.model.set_thread_robot         :
+                print("self.model.set_thread_robot")
+            if self.model.retry_thread_robot       :
+                print("self.model.retry_thread_robot")
+            if self.model.trigger_thread_robot     :
+                print("self.model.trigger_thread_robot")
+            if self.model.loaded_thread_robot      :
+                print("self.model.loaded_thread_robot")
+            if self.model.inserted_thread_robot    :
+                print("self.model.inserted_thread_robot")
+            if self.model.error_thread_robot       :
+                print("self.model.error_thread_robot")
+            if self.model.limite_reintentos_thread :
+                print("self.model.limite_reintentos_thread")
+            if self.model.llave_thread             :
+                print("self.model.llave_thread")        
+
             #si se inicia el modo dos robots e inicia el robot_a...
             if self.model.init_thread_robot == True:
 
@@ -146,33 +166,31 @@ class MyThread(QThread):
                 if self.model.retry_thread_robot == True:
                     self.model.retry_thread_robot = False
 
-                    #sleep(0.5)
                     #si hubo algún error de inserción se limpia el error
                     self.model.robots[self.module]["error"] = ""
                     publish.single(self.model.pub_topics["plc"],json.dumps({"ERROR_insertion": False}),hostname='127.0.0.1', qos = 2)
 
                     #si hubo inserción manual se limpia la variable
                     self.model.fusible_manual = False
+                    self.model.waiting_key_thread = False
 
-                    if self.model.robots[self.module]["current_trig"] != None:
-                        current_trig = self.model.robots[self.module]["current_trig"]
-                        box             = current_trig[0]
-                        cavity          = current_trig[1]
+                    #si ya acabó el robot principal... (este estado thread reiniciará el robot)
+                    if self.model.robot_principal == True:
 
-                    self.model.robots[self.module]["ready"] = False
-                    self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-                    sleep(0.1)
-                    publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
-                    sleep(0.4)
-                    publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
-                    self.model.robots[self.module]["retry"] = False
-                    self.model.set_thread_robot = True
+                        if self.module == "robot_a":
+                            self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+                        if self.module == "robot_b":
+                            self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
 
-                #se reinició el robot, se va a set_robot (o si llega un READY del robot)
+                        self.model.robots[self.module]["ready"] = False
+                        sleep(0.1)
+                        publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+                        sleep(0.4)
+                        publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+
+                #set_robot solo entra cuando llega un READY del robot)
                 if self.model.set_thread_robot == True:
                     self.model.set_thread_robot = False
-
-                    #sleep(0.5)
 
                     if len(self.model.robots[self.module]["queueIzq"]) or len(self.model.robots[self.module]["queueDer"]):
                         command = {
@@ -184,6 +202,7 @@ class MyThread(QThread):
                             self.model.robots[self.module]["ready"] = False
                             self.model.trigger_thread_robot = True
                             self.model.finish_thread_robot = False
+                    #si no le quedan fusibles en cola...
                     else:
                         self.model.trigger_thread_robot = False
                         self.model.finish_thread_robot = True
@@ -191,8 +210,6 @@ class MyThread(QThread):
                 #una vez reiniciado, si no ha finalizado se va a triggers (o después de una inserción)
                 if self.model.trigger_thread_robot == True:
                     self.model.trigger_thread_robot = False
-
-                    #sleep(0.5)
 
                     self.queueIzq      = self.model.robots[self.module]["queueIzq"]
                     self.queueDer      = self.model.robots[self.module]["queueDer"]
@@ -406,8 +423,11 @@ class MyThread(QThread):
                         print("Enviando robot a Home - STOP - START")
                         sleep(0.1)
                         publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+                        sleep(0.1)
+                        publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
                         sleep(0.4)
                         publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+                        sleep(0.1)
 
                         command = {
                             "lbl_result" : {"text": f"Inserciones del {self.module} terminadas", "color": "green"},
@@ -418,8 +438,6 @@ class MyThread(QThread):
                 #si llega mensaje de LOADED como respuesta del robot...
                 if self.model.loaded_thread_robot == True:
                     self.model.loaded_thread_robot = False
-
-                    #sleep(0.5)
 
                     box     = self.model.robots[self.module]["current_trig"][0]
                     cavity  = self.model.robots[self.module]["current_trig"][1]
@@ -437,8 +455,6 @@ class MyThread(QThread):
                 #si llega mensaje de INSERTED como respuesta del robot...
                 if self.model.inserted_thread_robot == True:
                     self.model.inserted_thread_robot = False
-
-                    #sleep(0.5)
 
                     box             = self.model.robots[self.module]["current_trig"][0]
                     cavity          = self.model.robots[self.module]["current_trig"][1]
@@ -501,8 +517,6 @@ class MyThread(QThread):
                 if self.model.error_thread_robot == True:
                     self.model.error_thread_robot = False
 
-                    #sleep(0.5)
-
                     box = self.model.robots[self.module]["current_trig"][0]
                     cavity = self.model.robots[self.module]["current_trig"][1]
                     if box == "PDC-RMID" and cavity == "F96":
@@ -543,10 +557,14 @@ class MyThread(QThread):
                                 self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
                             if self.module == "robot_b":
                                 self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-                            self.model.robots[self.module]["ready"] = False
-                            publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+                            self.model.robots["robot_a"]["ready"] = False
+                            self.model.robots["robot_b"]["ready"] = False
+                            publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+                            publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
                             sleep(0.4)
-                            publish.single(self.model.pub_topics[self.module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+                            publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+                            sleep(0.4)
+                            publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
 
                             command = {
                                 "lbl_result" : {"text": f"ERROR de inserción", "color": "red"},
@@ -571,8 +589,6 @@ class MyThread(QThread):
                 #si se excedió el limite de errores se habilita limite_reintentos_thread en el if anterior
                 if self.model.limite_reintentos_thread == True:
                     self.model.limite_reintentos_thread = False
-
-                    #sleep(0.5)
 
                     box = self.model.robots[self.module]["current_trig"][0]
                     cavity = self.model.robots[self.module]["current_trig"][1]
@@ -619,12 +635,12 @@ class MyThread(QThread):
                     publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
                     #bandera para funcionamiento de la llave sin mensaje de confirmación
                     self.model.fusible_manual = True
+                    self.model.waiting_key_thread = True
 
                 #si se da llave después de haber estado en modo inserción manual
                 if self.model.llave_thread == True:
                     self.model.llave_thread = False
-
-                    #sleep(0.5)
+                    self.model.waiting_key_thread = False
 
                     self.model.robots[self.module]["current_trig"] = None
                     if self.model.popQueueIzq_2 == True and self.model.popQueueDer_2 == False:
@@ -634,7 +650,7 @@ class MyThread(QThread):
                     
                     command = {
                                 "lbl_result" : {"text": f"Fusible insertado manualmente.", "color": "green"},
-                                "lbl_steps" : {"text": f"Continuando en {self.model.screen_cont} :con siguiente insercion.", "color": "blue"}
+                                "lbl_steps" : {"text": f"Continuando con siguiente insercion.", "color": "blue"}
                                 }
 
                     publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
@@ -644,16 +660,10 @@ class MyThread(QThread):
                 if self.model.finish_thread_robot == True:
                      self.model.finish_thread_robot = False
 
-                     #sleep(0.5)
-
                      #variable que termina el ciclo cuando se está esperando a este robot
                      self.model.thread_robot = True
                      #se apaga el init_thread para dejar de estar ejecutando en paralelo
                      self.model.init_thread_robot = False
-
-            if self.model.init_thread_robot == False:
-                sleep(10)
-                print("No hay ejecución de robot en paralelo")
 
 
             

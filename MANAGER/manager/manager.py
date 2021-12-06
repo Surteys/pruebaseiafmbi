@@ -2,7 +2,7 @@
 Authors: MC Marco Rutiaga
          MC Aarón Castillo (master en comentarios)
          Ing Rogelio García (master en API)
-         MC César Velázquez (master de etiquetas)
+         MC César Velázquez (master en cuidado de pinzas)
 
 pyinstaller --add-data data;data manager.py
 """

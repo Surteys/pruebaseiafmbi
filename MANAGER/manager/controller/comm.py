@@ -300,6 +300,16 @@ class MqttClient (QObject):
                     }
         self.client.publish(self.model.pub_topics["gui"],json.dumps(command), qos = 2)
 
+    def thread_triggers_off(self):
+            self.model.retry_thread_robot       = False
+            self.model.set_thread_robot         = False
+            self.model.trigger_thread_robot     = False
+            self.model.loaded_thread_robot      = False
+            self.model.inserted_thread_robot    = False
+            self.model.error_thread_robot       = False
+            self.model.limite_reintentos_thread = False
+            self.model.llave_thread             = False
+
 ################################################################################
     #se ejecuta cada que entra un mensaje MQTT nuevo (secuencial pero pueden llegar al mismo tiempo)
     def on_message(self, client, userdata, message): 
@@ -367,8 +377,14 @@ class MqttClient (QObject):
                     if payload["key"] == True:
                         # si la variable es True, quiere decir que ya pasaron varios reintentos y se requiere llave de calidad para continua
                         if self.model.fusible_manual == True:
-                            self.model.llave_thread = True
-                            self.key.emit()
+
+                            if self.model.waiting_key_thread == True:
+                                self.thread_triggers_off()
+                                self.model.llave_thread = True
+                            else:
+                                self.key.emit()
+                                
+                            
                         # si la variable es False, quiere decir que estás en otra parte del proceso y la llave reiniciará el ciclo
                         elif self.model.fusible_manual == False:
                             command = {"popOut":"¿Seguro que desea dar llave?\n Presione Esc. para salir, Enter para continuar..."}
@@ -383,9 +399,10 @@ class MqttClient (QObject):
                 if "retry_btn" in payload:
                     self.model.plc["retry_btn"] = bool(payload["retry_btn"])
                     if payload["retry_btn"] == True:
+                        self.thread_triggers_off()
                         self.model.retry_thread_robot = True
+                        print("self.model.retry_thread_robot: ",self.model.retry_thread_robot)
                         self.retry_btn.emit()
-
                 #se crea una lista en self.model.plc["clamps"] donde se van agregando o
                 #quitando elementos para saber si en ese momento están o no clampeadas las cajas
                 for i in list(payload):
@@ -804,6 +821,7 @@ class MqttClient (QObject):
                         command = {"popOut":"close"}
                         self.client.publish(self.model.pub_topics["gui"],json.dumps(command), qos = 2)
                         self.key.emit()
+                        self.thread_triggers_off()
                         print("key emit")
                     else:
                         command = {"popOut":"Mensaje no recibido, gire la llave nuevamente"}
@@ -856,8 +874,6 @@ class MqttClient (QObject):
                     self.model.robots_mode = 2
                     self.F5.emit()
                 
-                #if self.keyboard_key == "keyboard_F7":
-                #    self.model.thread_robot = True
 
             if message.topic == self.model.sub_topics["gui"]:
                 if "request" in payload:
@@ -905,25 +921,29 @@ class MqttClient (QObject):
                     if type(payload["response"]) is str:
                         self.model.robots["robot_a"]["pose"] = payload["response"]
                         self.pose.emit()
-                        #if "color" in payload["response"]:
                         if "LOADED" in payload["response"]:
                             if self.model.current_thread_robot == "robot_a":
                                 self.model.loaded_thread_robot = True
-                            self.loaded.emit()
+                            else:
+                                self.loaded.emit()
                         if "INSERTED" in payload["response"]:
                             if self.model.current_thread_robot == "robot_a":
                                 self.model.inserted_thread_robot = True
-                            self.inserted.emit()
+                            else:
+                                self.inserted.emit()
                         if "READY" in payload["response"]:
                             self.model.robots["robot_a"]["ready"] = True
                             if self.model.current_thread_robot == "robot_a":
                                 self.model.set_thread_robot = True
-                            self.ready.emit()
+                            else:
+                                self.ready.emit()
                         if "ERROR" in payload["response"]:
                             self.model.robots["robot_a"]["error"] = payload["response"].rsplit("_",1)[1]
                             if self.model.current_thread_robot == "robot_a":
+                                self.thread_triggers_off()
                                 self.model.error_thread_robot = True
-                            self.error.emit()
+                            else:
+                                self.error.emit()
 
             if message.topic == self.model.sub_topics["robot_b"]:
                 ###############################################################
@@ -943,35 +963,29 @@ class MqttClient (QObject):
                     if type(payload["response"]) is str:
                         self.model.robots["robot_b"]["pose"] = payload["response"]
                         self.pose.emit()
-                        #if "color" in payload["response"]:
                         if "LOADED" in payload["response"]:
                             if self.model.current_thread_robot == "robot_b":
                                 self.model.loaded_thread_robot = True
-                            self.loaded.emit()
+                            else:
+                                self.loaded.emit()
                         if "INSERTED" in payload["response"]:
                             if self.model.current_thread_robot == "robot_b":
                                 self.model.inserted_thread_robot = True
-                            self.inserted.emit()
+                            else:
+                                self.inserted.emit()
                         if "READY" in payload["response"]:
                             self.model.robots["robot_b"]["ready"] = True
                             if self.model.current_thread_robot == "robot_b":
                                 self.model.set_thread_robot = True
-                            self.ready.emit()
+                            else:
+                                self.ready.emit()
                         if "ERROR" in payload["response"]:
                             self.model.robots["robot_b"]["error"] = payload["response"].rsplit("_",1)[1]
                             if self.model.current_thread_robot == "robot_b":
+                                self.thread_triggers_off()
                                 self.model.error_thread_robot = True
-                            self.error.emit()
-
-            if message.topic == self.model.sub_topics["color_sensor_a"]:
-                if "result" in payload:
-                    self.model.color_sensors["color_sensor_a"]["result"] = payload["result"]
-                    self.color_rsp.emit()
-
-            if message.topic == self.model.sub_topics["color_sensor_b"]:
-                if "result" in payload:
-                    self.model.color_sensors["color_sensor_b"]["result"] = payload["result"]
-                    self.color_rsp.emit()
+                            else:
+                                self.error.emit()
 
         except Exception as ex:
             print("input exception", ex)
