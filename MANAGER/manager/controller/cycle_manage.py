@@ -917,7 +917,7 @@ class Waiting_Robot (QState):
     def onEntry(self, event):
 
         command = {
-            "lbl_info3" : {"text": "Esperando Segundo Robot", "color": "green"}
+            "lbl_info3" : {"text": "Esperando\n Segundo\n Robot", "color": "green"}
             }
         publish.single(self.model.pub_topics["gui"],json.dumps(command),hostname='127.0.0.1', qos = 2)
 

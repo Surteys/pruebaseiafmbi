@@ -616,15 +616,18 @@ class MyThread(QThread):
                     #se reinicia el contador de intentos para fusible
                     self.model.contador_error_2 = 0
 
-                    if self.module == "robot_a":
-                            self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-                    if self.module == "robot_b":
-                        self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+                    #if self.module == "robot_a":
+                    self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+                    #if self.module == "robot_b":
+                    self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
 
                     sleep(0.1)
-                    publish.single(self.model.pub_topics[self.module],json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+                    publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
+                    publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
                     sleep(0.4)
-                    publish.single(self.model.pub_topics[self.module],json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+                    publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+                    sleep(0.4)
+                    publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
 
                     command = {
                                 "lbl_result" : {"text": f"Reintentos: {reintentos}. Para reintentar presionar boton amarillo.", "color": "blue"},
@@ -646,8 +649,10 @@ class MyThread(QThread):
                     self.model.robots[self.module]["current_trig"] = None
                     if self.model.popQueueIzq_2 == True and self.model.popQueueDer_2 == False:
                         self.model.robots[self.module]["queueIzq"].pop(0)
+                        print("|||||||SE HIZO EL POP EN PARALELO PARA COLA IZQ")
                     if self.model.popQueueIzq_2 == False and self.model.popQueueDer_2 == True:
                         self.model.robots[self.module]["queueDer"].pop(0)
+                        print("|||||||SE HIZO EL POP EN PARALELO PARA COLA DER")
                     
                     command = {
                                 "lbl_result" : {"text": f"Fusible insertado manualmente.", "color": "green"},

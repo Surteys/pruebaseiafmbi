@@ -301,7 +301,6 @@ class MqttClient (QObject):
         self.client.publish(self.model.pub_topics["gui"],json.dumps(command), qos = 2)
 
     def thread_triggers_off(self):
-        self.model.init_thread_robot        = False
         self.model.retry_thread_robot       = False
         self.model.set_thread_robot         = False
         self.model.trigger_thread_robot     = False
@@ -983,9 +982,8 @@ class MqttClient (QObject):
                         if "ERROR" in payload["response"]:
                             self.model.robots["robot_b"]["error"] = payload["response"].rsplit("_",1)[1]
                             if self.model.current_thread_robot == "robot_b":
-                                self.model.error_thread_robot = True
-                                sleep(0.3)
                                 self.thread_triggers_off()
+                                self.model.error_thread_robot = True
                             else:
                                 self.error.emit()
 
