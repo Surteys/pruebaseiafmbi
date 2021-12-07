@@ -161,6 +161,7 @@ class MyThread(QThread):
 
             #si se inicia el modo dos robots e inicia el robot_a...
             if self.model.init_thread_robot == True:
+                print("self.model.init_thread_robot")
 
                 #si se presiona el botón de reintento (o después de una inserción manual)
                 if self.model.retry_thread_robot == True:
@@ -553,10 +554,10 @@ class MyThread(QThread):
                     elif self.model.contador_error_2 < self.model.max_reintentos_2:
 
                         try:
-                            if self.module == "robot_a":
-                                self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-                            if self.module == "robot_b":
-                                self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+                            #if self.module == "robot_a":
+                            self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+                            #if self.module == "robot_b":
+                            self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
                             self.model.robots["robot_a"]["ready"] = False
                             self.model.robots["robot_b"]["ready"] = False
                             publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)

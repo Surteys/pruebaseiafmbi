@@ -479,6 +479,7 @@ class Error(QState):
     def onEntry(self, event):
 
         print("current state: Error")
+        self.model.transitions.thread_triggers_off()
 
         box = self.model.robots[self.module]["current_trig"][0]
         cavity = self.model.robots[self.module]["current_trig"][1]
@@ -549,16 +550,20 @@ class Error(QState):
 
     def restartRobot(self):
         ########### MODIFICACION ###########
-        if self.module == "robot_a":
-            self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
-        if self.module == "robot_b":
-            self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+        #if self.module == "robot_a":
+        self.model.robothome_a = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
+        #if self.module == "robot_b":
+        self.model.robothome_b = True # variable para activar Mensaje de enviar robot a home, se resetea sola en comm.py
         ########### MODIFICACION ###########
         self.model.robots["robot_a"]["ready"] = False
         self.model.robots["robot_b"]["ready"] = False
         publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
         publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "stop"}),hostname='127.0.0.1', qos = 2)
-        Timer(0.4, self.startRobot, args = (self.module,)).start()
+        sleep(0.4)
+        publish.single(self.model.pub_topics["robot_a"] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+        sleep(0.4)
+        publish.single(self.model.pub_topics["robot_b"] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
+        #Timer(0.4, self.startRobot, args = (self.module,)).start()
 
     def startRobot(self, module):
         publish.single(self.model.pub_topics[module] ,json.dumps({"command": "start"}),hostname='127.0.0.1', qos = 2)
